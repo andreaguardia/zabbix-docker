@@ -1,0 +1,48 @@
+services:
+  postgres:                                    # Database (stores all monitoring data)
+    image: postgres:16
+    environment:
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: zabbix
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  zabbix-server:                               # The brain: collects data, checks alarms
+    image: zabbix/zabbix-server-pgsql:alpine-7.0-latest
+    environment:
+      DB_SERVER_HOST: postgres
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: zabbix
+    ports:
+      - "10051:10051"
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  zabbix-web:                                  # The website (dashboards)
+    image: zabbix/zabbix-web-nginx-pgsql:alpine-7.0-latest
+    environment:
+      ZBX_SERVER_HOST: zabbix-server
+      DB_SERVER_HOST: postgres
+      POSTGRES_USER: zabbix
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: zabbix
+      PHP_TZ: America/La_Paz
+    ports:
+      - "8081:8080"
+    depends_on:
+      - zabbix-server
+    restart: unless-stopped
+
+  zabbix-agent:                                # Agent: reports CPU, RAM, network
+    image: zabbix/zabbix-agent2:alpine-7.0-latest
+    environment:
+      ZBX_HOSTNAME: "Zabbix server"
+      ZBX_SERVER_HOST: zabbix-server
+    restart: unless-stopped
+
+volumes:
+  pgdata:
